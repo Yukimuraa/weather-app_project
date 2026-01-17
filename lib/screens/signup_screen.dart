@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../services/database_service.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -81,10 +82,124 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
     try {
       final authService = Provider.of<AuthService>(context, listen: false);
-      await authService.signUpWithEmailPassword(
+      
+      // Register with Firebase first
+      final userCredential = await authService.signUpWithEmailPassword(
         _emailController.text,
         _passwordController.text,
       );
+
+      if (!mounted) return;
+
+      // Save to MySQL database after Firebase registration
+      try {
+        final databaseService = DatabaseService();
+        debugPrint('=== DATABASE SAVE ATTEMPT ===');
+        debugPrint('URL: ${DatabaseService.baseUrl}/register.php');
+        debugPrint('Email: ${_emailController.text}');
+        debugPrint('Firebase UID: ${userCredential?.user?.uid}');
+        
+        final result = await databaseService.registerUser(
+          email: _emailController.text,
+          password: _passwordController.text,
+          firebaseUid: userCredential?.user?.uid,
+        );
+        
+        debugPrint('=== DATABASE SAVE SUCCESS ===');
+        debugPrint('User saved to MySQL database successfully');
+        debugPrint('Database response: $result');
+        debugPrint('User ID: ${result['user_id']}');
+        
+        // Show success message for database save
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Account created and saved to database successfully!'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      } catch (dbError) {
+        // Log database error but don't fail the registration
+        // User is already registered in Firebase
+        debugPrint('=== DATABASE SAVE FAILED ===');
+        debugPrint('Error type: ${dbError.runtimeType}');
+        debugPrint('Error message: $dbError');
+        debugPrint('Full error: ${dbError.toString()}');
+        debugPrint('Stack trace: ${StackTrace.current}');
+        
+        // Show detailed error message to help user fix the issue
+        if (mounted) {
+          final errorMsg = dbError.toString();
+          String userMessage;
+          Color bgColor = Colors.red;
+          
+          if (errorMsg.contains('Cannot connect') || 
+              errorMsg.contains('Connection timeout') ||
+              errorMsg.contains('SocketException') ||
+              errorMsg.contains('Failed host lookup')) {
+            userMessage = '⚠️ Account created in Firebase, but database save failed!\n\n'
+                'Cannot connect to server. Please check:\n'
+                '• XAMPP Apache is running\n'
+                '• URL: ${DatabaseService.baseUrl}\n'
+                '• For physical device, use your computer\'s IP address\n\n'
+                'Check Flutter console for details.';
+          } else if (errorMsg.contains('Email already registered')) {
+            userMessage = '✅ Account created in Firebase.\n'
+                'Email already exists in database (user may have registered before).';
+            bgColor = Colors.orange;
+          } else if (errorMsg.contains('Invalid server response') || 
+                     errorMsg.contains('Invalid JSON')) {
+            userMessage = '⚠️ Account created in Firebase, but database save failed!\n\n'
+                'Server response error. Please check:\n'
+                '• PHP is working (test: http://localhost/weathercropsapp/api/test.php)\n'
+                '• Database exists (run database.sql)\n\n'
+                'Error: ${errorMsg.substring(0, 100)}...';
+          } else {
+            userMessage = '⚠️ Account created in Firebase, but database save failed!\n\n'
+                'Error: $errorMsg\n\n'
+                'Check:\n'
+                '• Flutter console for details\n'
+                '• api/register_errors.log file\n'
+                '• Test API: http://localhost/weathercropsapp/api/test.php';
+          }
+          
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(userMessage),
+              backgroundColor: bgColor,
+              duration: const Duration(seconds: 8),
+              action: SnackBarAction(
+                label: 'DETAILS',
+                textColor: Colors.white,
+                onPressed: () {
+                  // Show dialog with full error
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Database Save Error'),
+                      content: SingleChildScrollView(
+                        child: Text(
+                          'Full error details:\n\n$errorMsg\n\n'
+                          'Check the Flutter console (debug output) for more information.',
+                          style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                        ),
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+        }
+      }
 
       if (!mounted) return;
 

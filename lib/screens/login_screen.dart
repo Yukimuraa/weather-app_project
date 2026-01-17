@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
+import '../main.dart';
 import 'signup_screen.dart';
 import 'forgot_password_screen.dart';
 
@@ -59,9 +60,18 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
         }
-        // Navigation will happen automatically via AuthWrapper
-        // But add a small delay to ensure state is propagated
-        await Future.delayed(const Duration(milliseconds: 200));
+        
+        // Wait a moment for auth state to propagate
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        // Explicitly navigate to dashboard if still mounted
+        if (mounted && authService.isAuthenticated) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+            (route) => false, // Remove all previous routes
+          );
+        }
       } else {
         throw 'Sign in failed. Please try again.';
       }
@@ -239,9 +249,17 @@ class _LoginScreenState extends State<LoginScreen> {
       
       // Verify sign-in was successful
       if (result != null && authService.currentUser != null) {
-        // Navigation will happen automatically via AuthWrapper
-        // But add a small delay to ensure state is propagated
-        await Future.delayed(const Duration(milliseconds: 200));
+        // Wait a moment for auth state to propagate
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        // Explicitly navigate to dashboard if still mounted
+        if (mounted && authService.isAuthenticated) {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const MainScreen()),
+            (route) => false, // Remove all previous routes
+          );
+        }
       } else if (result == null) {
         // User canceled the sign-in
         if (mounted) {

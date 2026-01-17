@@ -21,9 +21,10 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
       PlantingRecommendationService();
   final NotificationService _notificationService = NotificationService();
 
-  // Default location: 10.7483° N, 122.9801° E (Philippines)
-  static const double _defaultLatitude = 10.7483;
-  static const double _defaultLongitude = 122.9801;
+  // Default location: Talisay City, Negros Occidental (Philippines)
+  // Approx coordinates: 10.7350° N, 122.9670° E
+  static const double _defaultLatitude = 10.7350;
+  static const double _defaultLongitude = 122.9670;
 
   List<PlantingRecommendation> _recommendations = [];
   bool _isLoading = false;

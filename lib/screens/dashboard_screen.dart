@@ -29,9 +29,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
       PlantingRecommendationService();
   final NotificationService _notificationService = NotificationService();
 
-  // Default location: 10.7483° N, 122.9801° E (Philippines)
-  static const double _defaultLatitude = 10.7483;
-  static const double _defaultLongitude = 122.9801;
+  // Default location: Talisay City, Negros Occidental (Philippines)
+  // Approx coordinates: 10.7350° N, 122.9670° E
+  static const double _defaultLatitude = 10.7350;
+  static const double _defaultLongitude = 122.9670;
 
   WeatherForecast? _forecast;
   List<PlantingRecommendation> _recommendations = [];
@@ -719,7 +720,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(
-                                              _usingDefaultLocation ? 'Default Location' : 'Current Location',
+                                              _usingDefaultLocation ? 'Default Location (Talisay City, Negros Occidental)' : 'Current Location',
                                               style: Theme.of(context).textTheme.bodySmall,
                                             ),
                                             Text(

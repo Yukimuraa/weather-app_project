@@ -286,35 +286,53 @@ class _MainScreenState extends State<MainScreen> {
 
                         if (confirm == true && context.mounted) {
                           try {
-                            // Await sign out to ensure state is updated cleanly
-                            await authService.signOut();
-
-                            // Close the drawer if open
+                            // Close the drawer first
                             if (Navigator.canPop(context)) {
                               Navigator.pop(context);
                             }
 
-                            // Reset to Dashboard tab
-                            if (mounted) {
-                              setState(() {
-                                _currentIndex = 0;
-                              });
+                            // Await sign out to ensure state is updated cleanly
+                            await authService.signOut();
+
+                            // Wait a moment for auth state to propagate
+                            await Future.delayed(const Duration(milliseconds: 200));
+
+                            // Navigate back to login screen
+                            // Pop all routes until we reach the root (AuthWrapper)
+                            // AuthWrapper will automatically show LoginScreen when user is null
+                            if (context.mounted) {
+                              Navigator.popUntil(context, (route) => route.isFirst);
+                              
+                              // If still on MainScreen, force navigation to LoginScreen
+                              if (context.mounted && !authService.isAuthenticated) {
+                                Navigator.pushReplacement(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const LoginScreen(),
+                                  ),
+                                );
+                              }
                             }
 
                             // Show a quick feedback
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Logged out successfully'),
-                                backgroundColor: Colors.green,
-                              ),
-                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Logged out successfully'),
+                                  backgroundColor: Colors.green,
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
                           } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Error logging out: ${e.toString()}'),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Error logging out: ${e.toString()}'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
                           }
                         }
                       },

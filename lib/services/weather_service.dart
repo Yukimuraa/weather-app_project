@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart' show debugPrint;
 import '../models/weather.dart';
 
 class WeatherService {
@@ -41,7 +42,25 @@ class WeatherService {
 
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
+        
+        // Debug: Log current weather data
+        if (data['current'] != null) {
+          final current = data['current'] as Map<String, dynamic>;
+          debugPrint('=== CURRENT WEATHER DATA ===');
+          debugPrint('Time: ${current['time']}');
+          debugPrint('Temperature: ${current['temperature_2m']}°C');
+          debugPrint('Location: $latitude, $longitude');
+        }
+        
         final forecast = _parseWeatherData(data, latitude, longitude);
+        
+        // Debug: Log parsed forecast
+        if (forecast.dailyForecast.isNotEmpty) {
+          debugPrint('=== PARSED FORECAST ===');
+          debugPrint('First item date: ${forecast.dailyForecast.first.date}');
+          debugPrint('First item temp: ${forecast.dailyForecast.first.temperature}°C');
+          debugPrint('Total forecast items: ${forecast.dailyForecast.length}');
+        }
 
         // Save cache
         _cachedForecast = forecast;
@@ -195,11 +214,47 @@ class WeatherService {
 
     dailyForecast.sort((a, b) => a.date.compareTo(b.date));
 
+    // Debug: Log all forecast dates and temperatures
+    debugPrint('=== ALL FORECAST ITEMS ===');
+    for (var item in dailyForecast) {
+      debugPrint('Date: ${item.date}, Temp: ${item.temperature}°C, IsToday: ${_isToday(item.date)}');
+    }
+
     return WeatherForecast(
       dailyForecast: dailyForecast,
       latitude: latitude,
       longitude: longitude,
     );
+  }
+  
+  bool _isToday(DateTime date) {
+    final now = DateTime.now();
+    return date.year == now.year && 
+           date.month == now.month && 
+           date.day == now.day;
+  }
+  
+  /// Get current weather (today's weather) from forecast - static helper
+  static WeatherData? getCurrentWeather(WeatherForecast forecast) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    
+    // Find today's weather data
+    for (var weather in forecast.dailyForecast) {
+      final weatherDate = DateTime(weather.date.year, weather.date.month, weather.date.day);
+      if (weatherDate == today) {
+        debugPrint('Found current weather: ${weather.temperature}°C for today');
+        return weather;
+      }
+    }
+    
+    // If not found, return first item (should be today if current data was parsed)
+    if (forecast.dailyForecast.isNotEmpty) {
+      debugPrint('Using first forecast item as current: ${forecast.dailyForecast.first.temperature}°C');
+      return forecast.dailyForecast.first;
+    }
+    
+    return null;
   }
 
   String _getWeatherDescription(int? weatherCode) {
