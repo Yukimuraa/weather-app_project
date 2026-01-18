@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/weather.dart';
 import '../models/crop.dart';
 import '../services/planting_recommendation_service.dart';
+import '../services/season_service.dart';
 
 class PlantingCalendar extends StatelessWidget {
   final WeatherForecast forecast;
@@ -156,13 +157,14 @@ class PlantingCalendar extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4.0),
               child: Row(
                 children: List.generate(7, (index) {
+                  Widget cell;
                   if (index < week.length) {
                     final date = week[index];
-                    final isInRange = !date.isBefore(startDate) && 
+                    final isInRange = !date.isBefore(startDate) &&
                         date.isBefore(startDate.add(const Duration(days: 16)));
-                    
+
                     if (!isInRange) {
-                      return Expanded(
+                      cell = Expanded(
                         child: Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 2.0),
                           child: Container(
@@ -182,57 +184,80 @@ class PlantingCalendar extends StatelessWidget {
                           ),
                         ),
                       );
-                    }
-                    
-                    final score = dayScores[date] ?? 0.0;
-                    final color = _getDayColor(context, score);
-                    final isToday = date.year == now.year &&
-                        date.month == now.month &&
-                        date.day == now.day;
+                    } else {
+                      final score = dayScores[date] ?? 0.0;
+                      final color = _getDayColor(context, score);
+                      final isToday = date.year == now.year &&
+                          date.month == now.month &&
+                          date.day == now.day;
 
-                    return Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 2.0),
-                        child: Container(
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: color,
-                            borderRadius: BorderRadius.circular(8),
-                            border: isToday
-                                ? Border.all(
-                                    color: Theme.of(context).colorScheme.primary,
-                                    width: 2,
-                                  )
-                                : null,
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  '${date.day}',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                                        color: _getTextColor(context, color),
-                                      ),
+                      // In-season badge detection for selected crops
+                      final phSeason = SeasonService.getPhilippineSeason(date);
+                      final inSeason = selectedCrops.any(
+                        (crop) => crop.growingSeasons.any(
+                          (s) => SeasonService.matchesPhilippineSeason(s, phSeason),
+                        ),
+                      );
+
+                      cell = Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2.0),
+                          child: Stack(
+                            children: [
+                              Container(
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: isToday
+                                      ? Border.all(
+                                          color: Theme.of(context).colorScheme.primary,
+                                          width: 2,
+                                        )
+                                      : null,
                                 ),
-                                if (score > 0)
-                                  Text(
-                                    '${score.toInt()}',
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          fontSize: 8,
-                                          color: _getTextColor(context, color),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        '${date.day}',
+                                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                                              color: _getTextColor(context, color),
+                                            ),
+                                      ),
+                                      if (score > 0)
+                                        Text(
+                                          '${score.toInt()}',
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                fontSize: 8,
+                                                color: _getTextColor(context, color),
+                                              ),
                                         ),
+                                    ],
                                   ),
-                              ],
-                            ),
+                                ),
+                              ),
+                              if (inSeason)
+                                Positioned(
+                                  right: 4,
+                                  top: 4,
+                                  child: Icon(
+                                    Icons.eco,
+                                    size: 14,
+                                    color: _getTextColor(context, color),
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
-                      ),
-                    );
+                      );
+                    }
                   } else {
-                    return const Expanded(child: SizedBox());
+                    cell = const Expanded(child: SizedBox());
                   }
+                  return cell;
                 }),
               ),
             )),
@@ -241,12 +266,22 @@ class PlantingCalendar extends StatelessWidget {
   }
 
   Widget _buildLegend(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+    return Wrap(
+      alignment: WrapAlignment.spaceAround,
+      spacing: 12,
+      runSpacing: 8,
       children: [
-        _buildLegendItem(context, Colors.green, 'Best (≥85)'),
-        _buildLegendItem(context, Colors.blue, 'Good (≥70)'),
-        _buildLegendItem(context, Colors.red, 'Bad (<70)'),
+        _buildLegendItem(context, Colors.green, 'Best (≥80) – In-season ideal'),
+        _buildLegendItem(context, Colors.blue, 'Good (≥65)'),
+        _buildLegendItem(context, Colors.red, 'Caution (<65)'),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.eco, size: 16),
+            const SizedBox(width: 4),
+            Text('In-season day'),
+          ],
+        ),
       ],
     );
   }
@@ -273,9 +308,9 @@ class PlantingCalendar extends StatelessWidget {
   }
 
   Color _getDayColor(BuildContext context, double score) {
-    if (score >= 85) {
+    if (score >= 80) {
       return Colors.green.withValues(alpha: 0.7);
-    } else if (score >= 70) {
+    } else if (score >= 65) {
       return Colors.blue.withValues(alpha: 0.7);
     } else {
       return Colors.red.withValues(alpha: 0.7);
@@ -297,12 +332,12 @@ class PlantingCalendar extends StatelessWidget {
     double tempScore = 100.0;
     if (weather.temperature < biology.minTemperature ||
         weather.temperature > biology.maxTemperature) {
-      tempScore = 0.0;
+      tempScore = 40.0; // soften harsh zero
     } else {
       final tempDiff = (weather.temperature - biology.optimalTemperature).abs();
-      final tempRange = biology.maxTemperature - biology.minTemperature;
-      tempScore = 100.0 - (tempDiff / tempRange * 100.0);
-      if (tempScore < 0) tempScore = 0;
+      final tempRange = (biology.maxTemperature - biology.minTemperature).abs();
+      final normalized = (tempDiff / (tempRange == 0 ? 1 : tempRange)) * 100.0;
+      tempScore = (100.0 - normalized).clamp(40.0, 100.0);
     }
     score = score * 0.4 + tempScore * 0.4;
 
@@ -310,12 +345,12 @@ class PlantingCalendar extends StatelessWidget {
     double moistureScore = 100.0;
     if (weather.soilMoisture < biology.minSoilMoisture ||
         weather.soilMoisture > biology.maxSoilMoisture) {
-      moistureScore = 50.0;
+      moistureScore = 60.0; // soften out-of-range
     } else {
       final moistureDiff = (weather.soilMoisture - biology.optimalSoilMoisture).abs();
-      final moistureRange = biology.maxSoilMoisture - biology.minSoilMoisture;
-      moistureScore = 100.0 - (moistureDiff / moistureRange * 100.0);
-      if (moistureScore < 0) moistureScore = 0;
+      final moistureRange = (biology.maxSoilMoisture - biology.minSoilMoisture).abs();
+      final normalized = (moistureDiff / (moistureRange == 0 ? 1 : moistureRange)) * 100.0;
+      moistureScore = (100.0 - normalized).clamp(60.0, 100.0);
     }
     score = score * 0.3 + moistureScore * 0.3;
 
@@ -323,21 +358,31 @@ class PlantingCalendar extends StatelessWidget {
     double precipScore = 100.0;
     final monthlyPrecip = weather.precipitation * 30; // Estimate monthly
     if (monthlyPrecip < biology.minRainfall) {
-      precipScore = 50.0;
+      precipScore = 70.0; // further softened
     } else if (monthlyPrecip > biology.maxRainfall) {
-      precipScore = 70.0;
+      precipScore = 85.0; // further softened
     }
     score = score * 0.2 + precipScore * 0.2;
 
     // Soil temperature score (10% weight)
     double soilTempScore = 100.0;
     final soilTempDiff = (weather.soilTemperature - biology.optimalTemperature).abs();
-    final soilTempRange = biology.maxTemperature - biology.minTemperature;
-    soilTempScore = 100.0 - (soilTempDiff / soilTempRange * 100.0);
-    if (soilTempScore < 0) soilTempScore = 0;
+    final soilTempRange = (biology.maxTemperature - biology.minTemperature).abs();
+    final normalizedSoil = (soilTempDiff / (soilTempRange == 0 ? 1 : soilTempRange)) * 100.0;
+    soilTempScore = (100.0 - normalizedSoil).clamp(50.0, 100.0);
     score = score * 0.1 + soilTempScore * 0.1;
+
+    // Philippine season bonus (up to +12)
+    final phSeason = SeasonService.getPhilippineSeason(weather.date);
+    final hasMatchingSeason = crop.growingSeasons.any(
+      (s) => SeasonService.matchesPhilippineSeason(s, phSeason),
+    );
+    if (hasMatchingSeason) {
+      score = (score + 12).clamp(0.0, 100.0);
+    } else {
+      score = (score - 1).clamp(0.0, 100.0);
+    }
 
     return score.clamp(0.0, 100.0);
   }
 }
-

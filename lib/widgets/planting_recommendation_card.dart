@@ -39,27 +39,24 @@ class PlantingRecommendationCard extends StatelessWidget {
                             ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        DateFormat('MMMM dd, yyyy').format(recommendedDate),
-                        style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.event,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            DateFormat('MMMM dd, yyyy').format(recommendedDate),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: _getScoreColor(context, suitabilityScore),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Text(
-                    suitabilityScore.toStringAsFixed(0),
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                ),
+                // Removed circular score badge to avoid showing number in a circle
               ],
             ),
             const SizedBox(height: 12),
@@ -103,4 +100,3 @@ class PlantingRecommendationCard extends StatelessWidget {
     }
   }
 }
-

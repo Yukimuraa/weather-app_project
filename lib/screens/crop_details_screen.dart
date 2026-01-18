@@ -5,6 +5,8 @@ import '../services/weather_service.dart';
 import '../services/planting_recommendation_service.dart';
 import '../services/notification_service.dart';
 import '../widgets/planting_recommendation_card.dart';
+import '../services/season_service.dart';
+import '../models/weather.dart';
 
 class CropDetailsScreen extends StatefulWidget {
   final Crop crop;
@@ -100,6 +102,8 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     final biology = widget.crop.biology;
+    final phSeasonNow = SeasonService.getPhilippineSeason(DateTime.now());
+    final phSeasonsForCrop = SeasonService.mapSeasonsToPhilippines(widget.crop.growingSeasons);
 
     return Scaffold(
       appBar: AppBar(
@@ -226,7 +230,7 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 8,
-              children: widget.crop.growingSeasons.map(
+              children: phSeasonsForCrop.map(
                 (season) => Chip(
                   label: Text(season),
                   avatar: Icon(
@@ -236,6 +240,14 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
                   ),
                 ),
               ).toList(),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.wb_sunny_outlined),
+                const SizedBox(width: 6),
+                Text('Current PH Season: $phSeasonNow'),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -291,10 +303,77 @@ class _CropDetailsScreenState extends State<CropDetailsScreen> {
                       ),
                     ),
                   ),
+            const SizedBox(height: 24),
+            Text(
+              'Monthly Planting Summary',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<WeatherForecast>(
+              future: _weatherService.getWeatherForecast(_defaultLatitude, _defaultLongitude),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData) {
+                  return Text(
+                    'Unable to load monthly summary',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  );
+                }
+                final forecast = snapshot.data!;
+                final summaries = _recommendationService.getMonthlyPlantingSummary(widget.crop, forecast);
+                if (summaries.isEmpty) {
+                  return Text(
+                    'No monthly data available from forecast window',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  );
+                }
+                return Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: summaries.map((s) {
+                    final label = _monthName(s.month);
+                    final color = _summaryColor(context, s.category);
+                    final onColor = _summaryOnColor(context, color);
+                    return Chip(
+                      label: Text('$label: ${s.category} (${s.averageScore.toStringAsFixed(0)})',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: onColor)),
+                      avatar: Icon(Icons.calendar_month, color: onColor, size: 18),
+                      backgroundColor: color.withValues(alpha: 0.15),
+                    );
+                  }).toList(),
+                );
+              },
+            ),
           ],
         ),
       ),
     );
+  }
+
+  String _monthName(int month) {
+    const names = [
+      'January','February','March','April','May','June','July','August','September','October','November','December'
+    ];
+    return names[(month - 1).clamp(0, 11)];
+  }
+
+  Color _summaryColor(BuildContext context, String category) {
+    switch (category) {
+      case 'Best':
+        return Colors.green;
+      case 'Good':
+        return Colors.blue;
+      default:
+        return Colors.orange;
+    }
+  }
+
+  Color _summaryOnColor(BuildContext context, Color bg) {
+    return bg.computeLuminance() > 0.5 ? Colors.black87 : Colors.white;
   }
 
   Widget _buildInfoCard(
